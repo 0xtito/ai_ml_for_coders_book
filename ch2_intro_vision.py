@@ -1,21 +1,35 @@
 import tensorflow as tf
 import numpy as np
-import tensorflow.python.keras as keras
-from keras import Sequential
-from keras.layers import Flatten, Dense
-
-data = tf.keras.datasets.fashion_mnist
-
-(training_imgs, training_labels), (test_imgs, test_labels) = data.load_data()
-
-training_imgs = training_imgs / 255
-test_imgs = test_imgs / 255
+# make sure to either use tensorflow.python.karas or karas, mixing the two causes errors
+# import tensorflow.python.keras as keras
+from tensorflow.python.keras import Sequential, layers
 
 ''' --- Keywords ---
 Hyperparameter
     - these are the values that determine how the training is controlled
     - parameters are known to be the internal value of the neurons that a model uses to train/learn.
 '''
+
+class myCallback(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epochNum, logs={}):
+        if (logs.get('accuracy') >= 0.95):
+            print(f'\n Reach 95% accuracy so ending training')
+            self.model.stop_training = True
+
+callbacks = myCallback()
+data = tf.keras.datasets.fashion_mnist
+
+(training_imgs, training_labels), (test_imgs, test_labels) = data.load_data()
+
+''' normalzing the image
+In python, this notation allows you to do an operation across the whole array
+    - all our images are greyscale, with a value between 0 and 255
+    - thus, by dividing by 255, we are making each pixel's value be a number between or at 0 - 255
+The overarching math behind why one would do this is not the scope of this book, however
+    - know it improves the performance of the model
+'''
+training_imgs = training_imgs / 255
+test_imgs = test_imgs / 255
 
 
 ''' model init explanation
@@ -28,6 +42,7 @@ Dense   - used to define the number of neurons we want in a layer
             - the more neurons means the model has to learn more parameters, thus causing the model to run slower
             - by having more neurons, a model can become great at recognizing training data, but can be bad at recognizing unrecognized data
                 - called 'overfitting' more on this later
+                - the model becomes too dependent on the details and noise of its training data
             - with too little neurons, the model may have a difficult time learning effectively due to having too little parameters
             - Thought:
                 - is the ideal to go from a high number of neurons to train recognized data, but then to reduce the number as you input more unrecognized data? Is there a correlation between number of neurons and a models ability to recognize previously unseen data?
@@ -45,16 +60,42 @@ Dense   - again, used to define a layer of neurons
             - this will determine which neuron (out of the 10) has the largest value
 '''
 model = Sequential([
-    Flatten(input_shape=(28,28)),
-    Dense(128, activation=tf.nn.relu),
-    Dense(10, activation=tf.nn.softmax)
+    layers.Flatten(input_shape=(28,28)),
+    layers.Dense(128, activation=tf.nn.relu),
+    layers.Dense(10, activation=tf.nn.softmax)
 ])
 
-
+''' compile
+optimizer
+    - adam
+        - essentially a better, more efficient version of sgd "stochastic gradient descent"
+loss
+    - sparse_categorical_crossentropy
+        - since we our articles of clothing with be labeled in categories between 0 - 9
+        - using a `categorical` loss function is the way to go
+    - deciding which loss function is use in any given model is an art in itself
+        - as time goes on and you build out more models, you'll get a grasp of when to use which loss function
+'''
 model.compile(
     optimizer='adam',
     loss='sparse_categorical_crossentropy',
     metrics=['accuracy']
 )
 
-model.fit(training_imgs, test_imgs, epochs=5)
+''' model.fit
+if we were to increase the epochs from 5 => 50, the model's accuracy increase from rougly 89% to 96%
+    - however, when we evaluate the model with the training data, we see only a slight improvement in the accuracy
+        - 87.3% to 88.6%
+    - this is a clear case of 'overfitting'
+'''
+# with hardcoded epoch amount
+# model.fit(training_imgs, training_labels, epochs=5)
+
+# with 'callback' function
+model.fit(training_imgs, training_labels, epochs=50, callbacks=[callbacks])
+
+model.evaluate(test_imgs, test_labels)
+
+classifications = model.predict(test_imgs)
+print(classifications[0])
+print(test_labels[0])
